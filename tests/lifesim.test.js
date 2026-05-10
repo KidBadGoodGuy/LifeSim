@@ -64,3 +64,22 @@ test('descendants can be created and inherit the active bloodline', () => {
   assert.equal(child.lastName, sim.player.lastName);
   assert(child.genome.ancestry.length > 0);
 });
+
+test('event journal records domain events and versioned saves', () => {
+  const sim = new LifeSimulation(8080);
+  sim.startNewLife({ countryId: 'usa' });
+  sim.advanceYear();
+  const payload = JSON.parse(sim.serialize());
+  assert.equal(payload.version, 2);
+  assert(sim.events.journal.some((event) => event.type === 'time.yearAdvanced'));
+  assert(payload.domainJournal.some((event) => event.type === 'time.yearAdvanced'));
+});
+
+test('economy and autonomous NPC decisions evolve during yearly ticks', () => {
+  const sim = new LifeSimulation(9090);
+  sim.startNewLife({ countryId: 'india' });
+  const initialInflation = sim.world.economy.inflation;
+  for (let i = 0; i < 4; i += 1) sim.advanceYear();
+  assert.notEqual(sim.world.economy.inflation, initialInflation);
+  assert(sim.characters.filter((character) => !character.player).some((npc) => npc.ai?.decisionHistory?.length > 0));
+});

@@ -31,10 +31,20 @@ export function createCharacter(rng, { parents = [], country, player = false, ag
       trauma: [], habits: [], addictions: [], beliefs: [], emotionalMemory: [], selfEsteem: clamp(rng.normal(54, 20))
     },
     relationships: {},
-    education: { path: [], gradeAverage: null, studentDebt: 0, achievements: [] },
-    career: { track: null, title: 'Unborn', salary: 0, satisfaction: 50, years: 0, scandals: [] },
-    assets: { homes: [], vehicles: [], businesses: [], investments: [] },
+    components: {
+      identity: { legalNames: [], citizenships: country ? [country.id] : [], religion: country ? rng.pick(country.religions) : 'Unknown', languages: [] },
+      emotions: { happinessTrend: [], current: rng.pick(['calm', 'curious', 'anxious', 'hopeful', 'lonely']), attachmentStyle: rng.pick(['secure', 'anxious', 'avoidant', 'disorganized']) },
+      reputation: { public: 0, criminal: 0, academic: 0, professional: 0, family: rng.int(10, 70) },
+      health: { chronicConditions: [], disabilities: [], medications: [], sleepQuality: rng.int(35, 95), fitness: 0, nutrition: rng.int(25, 90) },
+      legal: { wantedLevel: 0, courtCases: [], prisonTerms: [], parole: null },
+      socialMedia: { platforms: [], followers: 0, controversies: [], engagement: rng.int(0, 12) },
+      legacy: { bloodlineTraits: [], inheritancePlan: null, estateTaxExposure: 0 }
+    },
+    education: { path: [], gradeAverage: null, studentDebt: 0, achievements: [], teachers: [], rivals: [], scholarships: [] },
+    career: { track: null, title: 'Unborn', salary: 0, satisfaction: 50, years: 0, scandals: [], coworkers: [], retirement: null },
+    assets: { homes: [], vehicles: [], businesses: [], investments: [], bankAccounts: [{ type: 'checking', balance: rng.int(0, 2500) }], liabilities: [] },
     memories: [],
+    longTermMemoryGraph: { nodes: [], edges: [] },
     criminalRecord: [],
     descendants: [],
     legacyScore: 0
@@ -42,12 +52,19 @@ export function createCharacter(rng, { parents = [], country, player = false, ag
   character.stats.intelligence = clamp((character.stats.intelligence + character.genome.inherited.intelligence) || character.genome.inherited.intelligence);
   character.stats.creativity = character.genome.inherited.creativity;
   character.stats.athleticism = character.genome.inherited.athleticism;
+  character.components.health.fitness = clamp((character.stats.athleticism + character.genome.inherited.resilience) / 2);
+  character.components.legacy.bloodlineTraits = Object.entries(character.genome.inherited).filter(([, value]) => value >= 70).map(([key]) => key);
   return character;
 }
 
 export function addMemory(character, year, title, impact = {}, tags = []) {
-  character.memories.unshift({ year, title, impact, tags, intensity: Math.max(1, Math.round(Object.values(impact).reduce((sum, value) => sum + Math.abs(value), 0) / 10)) });
+  const memory = { id: `mem_${year}_${character.memories.length}`, year, title, impact, tags, intensity: Math.max(1, Math.round(Object.values(impact).reduce((sum, value) => sum + Math.abs(value), 0) / 10)) };
+  character.memories.unshift(memory);
   character.memories = character.memories.slice(0, 90);
+  if (character.longTermMemoryGraph) {
+    character.longTermMemoryGraph.nodes.unshift({ id: memory.id, label: title, year, tags, intensity: memory.intensity });
+    character.longTermMemoryGraph.nodes = character.longTermMemoryGraph.nodes.slice(0, 160);
+  }
 }
 
 export function applyImpact(character, impact) {

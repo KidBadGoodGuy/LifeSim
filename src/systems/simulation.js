@@ -1,9 +1,12 @@
 import { RNG } from '../core/random.js';
-import { COUNTRIES, CAREER_TRACKS, EDUCATION_PATHS } from '../data/catalogs.js';
+import { COUNTRIES, CAREER_TRACKS } from '../data/catalogs.js';
 import { createCharacter, addMemory, applyImpact } from './character.js';
 import { createWorld, advanceWorld } from './world.js';
 import { generatePersonalEvents, resolveEvent, getLifeStage } from './events.js';
 import { relationshipDrift, connect } from './relationships.js';
+import { EventBus, DomainEvents } from '../core/eventBus.js';
+import { simulateNpcDecision, ensureNpcMind } from './ai.js';
+import { serializeSnapshot, normalizeLoadedSnapshot } from './persistence.js';
 
 export class LifeSimulation {
   constructor(seed = Date.now()) {
@@ -14,6 +17,11 @@ export class LifeSimulation {
     this.playerId = null;
     this.pendingEvents = [];
     this.activityLog = [];
+    this.events = new EventBus();
+    this.events.subscribe('*', (event) => {
+      if (event.type !== DomainEvents.NpcDecision) return;
+      this.activityLog = this.activityLog.slice(0, 80);
+    });
   }
 
   startNewLife({ countryId = 'usa', era = 'modern' } = {}) {
@@ -26,9 +34,11 @@ export class LifeSimulation {
     connect(player, parentB, 'parent', this.rng, this.rng.int(45, 95));
     this.characters = [player, parentA, parentB];
     this.playerId = player.id;
+    for (const character of [player, parentA, parentB]) ensureNpcMind(character, this.rng);
     this.pendingEvents = generatePersonalEvents(player, this.world, this.rng);
     addMemory(player, this.world.year, `Conceived in ${player.city}, ${country.name}. Your legacy begins before birth.`, { health: 1 }, ['family', 'prenatal']);
     this.log(`A new bloodline begins in ${player.city}, ${country.name}.`);
+    this.events.publish({ type: DomainEvents.LifeStarted, year: this.world.year, characterId: player.id, countryId: country.id });
     return player;
   }
 
@@ -41,6 +51,7 @@ export class LifeSimulation {
     if (!event || !this.player?.alive) return null;
     const impact = resolveEvent(this.player, this.world, this.rng, event, stance);
     this.log(`${event.text} (${Object.entries(impact).map(([k, v]) => `${k} ${v >= 0 ? '+' : ''}${v}`).join(', ')})`);
+    this.events.publish({ type: DomainEvents.EventResolved, year: this.world.year, characterId: this.player.id, eventId: event.id, stance, impact });
     this.pendingEvents.splice(index, 1);
     return impact;
   }
@@ -52,6 +63,8 @@ export class LifeSimulation {
 
     const headlines = advanceWorld(this.world, this.rng);
     if (headlines.length) this.log(headlines[0]);
+    this.events.publish({ type: DomainEvents.WorldAdvanced, year: this.world.year, headlines });
+    this.events.publish({ type: DomainEvents.EconomyUpdated, year: this.world.year, economy: this.world.economy });
     player.age += 1;
     relationshipDrift(player, this.rng);
     this.progressEducation(player);
@@ -61,6 +74,7 @@ export class LifeSimulation {
     this.pendingEvents = generatePersonalEvents(player, this.world, this.rng);
     this.checkMortality(player);
     this.log(`Age ${player.age}: entered ${getLifeStage(player.age).label}.`);
+    this.events.publish({ type: DomainEvents.YearAdvanced, year: this.world.year, characterId: player.id, age: player.age, lifeStage: getLifeStage(player.age).id });
     return player;
   }
 
@@ -105,6 +119,7 @@ export class LifeSimulation {
     character.career.salary = Math.round(22000 + track.prestige * 600 + this.rng.normal(0, 8000));
     addMemory(character, this.world.year, `Began a career in ${track.name} as ${character.career.title}.`, { wealth: 1500, stress: 3 }, ['career']);
     this.log(`Career selected: ${track.name}.`);
+    this.events.publish({ type: DomainEvents.CareerChanged, year: this.world.year, characterId: character.id, trackId: track.id, title: character.career.title });
   }
 
   progressHealth(character) {
@@ -150,9 +165,12 @@ export class LifeSimulation {
     connect(parent, child, adopted ? 'adopted child' : 'child', this.rng, this.rng.int(65, 100));
     connect(coParent, child, adopted ? 'guardian' : 'parent', this.rng, this.rng.int(35, 90));
     parent.descendants.push(child.id);
+    ensureNpcMind(coParent, this.rng);
+    ensureNpcMind(child, this.rng);
     this.characters.push(coParent, child);
     addMemory(parent, this.world.year, adopted ? `Adopted ${child.firstName} ${child.lastName}.` : `${child.firstName} ${child.lastName} was born, extending the bloodline.`, { happiness: 9, stress: 4 }, ['family', 'legacy', 'parenting']);
     this.log(`${parent.firstName}'s legacy expanded with ${child.firstName} ${child.lastName}.`);
+    this.events.publish({ type: DomainEvents.ChildAdded, year: this.world.year, parentId: parent.id, childId: child.id, adopted });
     return child;
   }
 
@@ -164,6 +182,10 @@ export class LifeSimulation {
     for (const npc of this.characters.filter((c) => !c.player && c.alive)) {
       npc.age += 1;
       if (this.rng.chance(0.08)) applyImpact(npc, { wealth: this.rng.int(-5000, 12000), happiness: this.rng.int(-4, 5) });
+      if (this.rng.chance(0.35)) {
+        const decision = simulateNpcDecision(npc, this.world, this.rng, this.characters);
+        this.events.publish({ type: DomainEvents.NpcDecision, year: this.world.year, ...decision });
+      }
       if (npc.age > 70 && this.rng.chance((npc.age - 65) / 900)) npc.alive = false;
     }
   }
@@ -174,11 +196,13 @@ export class LifeSimulation {
   }
 
   serialize() {
-    return JSON.stringify({ seed: this.seed, rngSeed: this.rng.seed, world: this.world, characters: this.characters, playerId: this.playerId, pendingEvents: this.pendingEvents, activityLog: this.activityLog });
+    const serialized = serializeSnapshot(this);
+    this.events.publish({ type: DomainEvents.SaveCreated, year: this.world.year, characterId: this.playerId });
+    return serialized;
   }
 
   static load(serialized) {
-    const data = JSON.parse(serialized);
+    const data = normalizeLoadedSnapshot(serialized);
     const sim = new LifeSimulation(data.seed);
     sim.rng.seed = data.rngSeed;
     sim.world = data.world;
@@ -186,8 +210,9 @@ export class LifeSimulation {
     sim.playerId = data.playerId;
     sim.pendingEvents = data.pendingEvents;
     sim.activityLog = data.activityLog;
+    sim.events.journal = data.domainJournal || [];
     return sim;
   }
 }
 
-export { EDUCATION_PATHS, CAREER_TRACKS };
+export { CAREER_TRACKS };

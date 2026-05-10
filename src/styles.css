@@ -70,3 +70,29 @@ dt { color: var(--muted); } dd { margin: 0; }
 @media (max-width: 980px) { .dashboard { grid-template-columns: 1fr 1fr; } .hero { align-items: flex-start; flex-direction: column; } .world-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 640px) { .dashboard { grid-template-columns: 1fr; } .span-2 { grid-column: auto; } .hero-actions { justify-content: flex-start; } button { width: 100%; } .world-grid { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+.command-center { min-height: 19rem; }
+.menu-search {
+  width: 100%; margin-bottom: 0.85rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.16);
+  padding: 0.8rem 1rem; color: var(--text); background: rgba(255,255,255,0.08); font: inherit;
+}
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.75rem; max-height: 34rem; overflow: auto; padding-right: 0.3rem; }
+.menu-card { border: 1px solid rgba(255,255,255,0.12); border-radius: 1rem; background: rgba(15, 23, 42, 0.7); }
+.menu-card summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: auto 1fr auto; gap: 0.55rem; align-items: center; padding: 0.8rem; }
+.menu-card summary::-webkit-details-marker { display: none; }
+.menu-card summary b { min-width: 1.4rem; height: 1.4rem; display: grid; place-items: center; border-radius: 99px; background: var(--brand); font-size: 0.74rem; }
+.menu-card summary em { grid-column: 1 / -1; color: var(--muted); font-size: 0.72rem; font-style: normal; }
+.menu-card div { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0 0.75rem 0.8rem; }
+.quick-action { padding: 0.48rem 0.62rem; font-size: 0.75rem; text-transform: capitalize; }
+.career-list { max-height: 25rem; overflow: auto; }
+.career { display: inline-grid; gap: 0.15rem; border-radius: 0.9rem; text-align: left; }
+.career small { color: var(--muted); font-weight: 700; }
+.tool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.7rem; }
+.tool-grid article { background: rgba(2, 6, 23, 0.5); border: 1px solid rgba(255,255,255,0.1); border-radius: 1rem; padding: 0.8rem; display: grid; gap: 0.4rem; }
+code { color: #bae6fd; white-space: normal; overflow-wrap: anywhere; }
+.virtual-list { max-height: 18rem; overflow: auto; padding-right: 0.4rem; }
+.panel:focus-within { border-color: rgba(6, 182, 212, 0.55); }
+@media (max-width: 640px) {
+  .menu-grid, .career-list, .virtual-list { max-height: none; }
+  .menu-card summary { grid-template-columns: auto 1fr; }
+  .menu-card summary b { grid-column: 1 / -1; }
+}
