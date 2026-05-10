@@ -29,6 +29,8 @@ export class EventBus {
 export const DomainEvents = Object.freeze({
   LifeStarted: 'life.started',
   YearAdvanced: 'time.yearAdvanced',
+  YearTickStarted: 'time.yearTickStarted',
+  UiUpdated: 'ui.updated',
   WorldAdvanced: 'world.advanced',
   CharacterAged: 'character.aged',
   EventResolved: 'event.resolved',
@@ -36,5 +38,6 @@ export const DomainEvents = Object.freeze({
   ChildAdded: 'family.childAdded',
   NpcDecision: 'npc.decision',
   EconomyUpdated: 'economy.updated',
-  SaveCreated: 'persistence.saveCreated'
+  SaveCreated: 'persistence.saveCreated',
+  AutoSaveCreated: 'persistence.autoSaveCreated'
 });
