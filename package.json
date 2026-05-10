@@ -1,0 +1,13 @@
+{
+  "name": "lifesim-nextgen",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A modular next-generation life simulation platform inspired by BitLife, The Sims, Crusader Kings, RimWorld, Dwarf Fortress, Civilization, and AI storytelling engines.",
+  "scripts": {
+    "start": "python3 -m http.server 4173",
+    "test": "node --test tests/*.test.js"
+  },
+  "keywords": ["life-sim", "procedural-storytelling", "simulation", "game"],
+  "license": "UNLICENSED"
+}
